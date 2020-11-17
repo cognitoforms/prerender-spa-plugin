@@ -66,16 +66,15 @@ PrerenderSPAPlugin.prototype.apply = function (compiler) {
       const reportProgress = (context && context.reportProgress) || (() => { })
       const routes = this._options.routes.slice()
       const numBatches = Math.ceil(routes.length / this._options.batchSize)
+      const PrerendererInstance = new Prerenderer(this._options)
+      await PrerendererInstance.initialize()
+
       let batchNumber = 1
       while (routes.length > 0) {
         const batch = routes.splice(0, this._options.batchSize)
-        const PrerendererInstance = new Prerenderer(this._options)
 
         try {
           reportProgress((batchNumber - 1) / numBatches, `starting batch ${batchNumber}/${numBatches}`)
-
-          await PrerendererInstance.initialize()
-
           reportProgress(batchNumber / numBatches, `rendering batch ${batchNumber}/${numBatches}`)
 
           let renderedRoutes = await PrerendererInstance.renderRoutes(batch || [])
@@ -141,10 +140,12 @@ PrerenderSPAPlugin.prototype.apply = function (compiler) {
             ))
           }))
 
-          await PrerendererInstance.destroy()
-
-          // small time padding to allow system to fully free server resources
-          await new Promise(resolve => setTimeout(resolve, 250))
+          // Force post-batch garbage collection
+          renderedRoutes = null
+          if (global.gc()) {
+            global.gc()
+            await new Promise(resolve => setTimeout(resolve, 250))
+          }
 
           ++batchNumber
         } catch (err) {
