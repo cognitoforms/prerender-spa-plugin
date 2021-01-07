@@ -64,8 +64,9 @@ PrerenderSPAPlugin.prototype.apply = function (compiler) {
   const afterEmit = async (context, compilation, done) => {
     try {
       const reportProgress = (context && context.reportProgress) || (function () { 
-        arguments.unshift("\nPRERENDER>");
-        console.log(...arguments)
+        let args = Array.prototype.slice.call(arguments);
+        args.unshift("\nPRERENDER>");
+        console.log(...args)
       });
       const routes = this._options.routes.slice()
       const numBatches = Math.ceil(routes.length / this._options.batchSize)
@@ -78,7 +79,7 @@ PrerenderSPAPlugin.prototype.apply = function (compiler) {
 
         try {
           //reportProgress((batchNumber - 1) / numBatches, `starting batch ${batchNumber}/${numBatches}`)
-          reportProgress(batchNumber / numBatches, `rendering batch ${batchNumber}/${numBatches}`)
+          reportProgress(((batchNumber / numBatches).toFixed(2) * 100).toString() + "%", `rendering batch ${batchNumber}/${numBatches}`)
 
           let renderedRoutes = await PrerendererInstance.renderRoutes(batch || [])
 
@@ -117,31 +118,33 @@ PrerenderSPAPlugin.prototype.apply = function (compiler) {
           })
 
           // Create dirs and write prerendered files.
-          reportProgress((batchNumber) / (numBatches * 2), `writing batch ${batchNumber}/${numBatches}`)
-          await Promise.all(renderedRoutes.map(route => {
+          reportProgress((((batchNumber) / (numBatches)).toFixed(2) * 100).toString() + '%', `writing batch ${batchNumber}/${numBatches}`)
+          await Promise.all(renderedRoutes.map(async route => {
             const paths = [route.outputPath]
             if (Array.isArray(route.alternateOutputPaths)) {
               paths.push(...route.alternateOutputPaths)
             }
 
-            return Promise.all(paths.map(outputPath => mkdirp(path.dirname(outputPath))
-              .then(() => {
-                return new Promise((resolve, reject) => {
+            await Promise.all(
+              paths.map(async outputPath => {
+                try {
+                  await mkdirp(path.dirname(outputPath))
+                }
+                catch(err) {
+                  if (typeof err === 'string') {
+                    err = `[prerender-spa-plugin] Unable to create directory ${path.dirname(outputPath)} for route ${route.route}. \n ${err}`
+                  }
+
+                  throw err
+                }
+                await new Promise((resolve, reject) => {
                   compilerFS.writeFile(outputPath, route.html.trim(), err => {
                     if (err) reject(`[prerender-spa-plugin] Unable to write rendered route to file "${outputPath}" \n ${err}.`)
                     else resolve()
                   })
                 })
-              })
-              .catch(err => {
-                if (typeof err === 'string') {
-                  err = `[prerender-spa-plugin] Unable to create directory ${path.dirname(outputPath)} for route ${route.route}. \n ${err}`
-                }
-
-                throw err
-              })
-            ))
-          }))
+              }));
+            }));
 
           // Force post-batch garbage collection
           renderedRoutes = null
@@ -156,11 +159,11 @@ PrerenderSPAPlugin.prototype.apply = function (compiler) {
           throw err
         }
       }
+      console.log("Prerender complete!");
       await PrerendererInstance.destroy()
     } catch (err) {
       const msg = '[prerender-spa-plugin] Unable to prerender all routes!'
-      console.error(msg)
-      console.error(err)
+      console.error(msg, err)
       compilation.errors.push(new Error(msg))
     }
     done()
