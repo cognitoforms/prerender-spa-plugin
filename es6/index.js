@@ -84,7 +84,7 @@ PrerenderSPAPlugin.prototype.apply = function (compiler) {
           reportProgress(Math.floor(((batchNumber / numBatches).toFixed(2) * 100)).toString() + "%", `rendering batch ${batchNumber}/${numBatches}`)
 
           let renderedRoutes = await PrerendererInstance.renderRoutes(batch || [])
-
+          reportProgress("Routes rendered!");
           // Backwards-compatibility with v2 (postprocessHTML should be migrated to postProcess)
           if (this._options.postProcessHtml) {
             renderedRoutes = renderedRoutes.map(renderedRoute => {
@@ -129,7 +129,7 @@ PrerenderSPAPlugin.prototype.apply = function (compiler) {
               paths.push(...route.alternateOutputPaths)
             }
 
-            await Promise.all(
+            return Promise.all(
               paths.map(async outputPath => {
                 try {
                   await mkdirp(path.dirname(outputPath))
@@ -141,7 +141,7 @@ PrerenderSPAPlugin.prototype.apply = function (compiler) {
 
                   throw err
                 }
-                await new Promise((resolve, reject) => {
+                return new Promise((resolve, reject) => {
                   compilerFS.writeFile(outputPath, route.html.trim(), err => {
                     if (err) reject(`[prerender-spa-plugin] Unable to write rendered route to file "${outputPath}" \n ${err}.`)
                     else resolve()
@@ -166,11 +166,11 @@ PrerenderSPAPlugin.prototype.apply = function (compiler) {
           throw err
         }
       }
-      console.log("Prerender complete!");
+      reportProgress("Prerender complete!");
       await PrerendererInstance.destroy()
     } catch (err) {
       const msg = '[prerender-spa-plugin] Unable to prerender all routes!'
-      console.error(msg, err)
+      creportProgress(msg, err);
       compilation.errors.push(new Error(msg))
     }
     done()
