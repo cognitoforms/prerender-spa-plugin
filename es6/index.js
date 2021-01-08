@@ -129,7 +129,7 @@ PrerenderSPAPlugin.prototype.apply = function (compiler) {
               paths.push(...route.alternateOutputPaths)
             }
 
-            return Promise.all(
+            return await Promise.all(
               paths.map(async outputPath => {
                 try {
                   await mkdirp(path.dirname(outputPath))
