@@ -70,6 +70,7 @@ PrerenderSPAPlugin.prototype.apply = function (compiler) {
       });
       const routes = this._options.routes.slice()
       const numBatches = Math.ceil(routes.length / this._options.batchSize)
+      reportProgress("Initializing prerenderer...")
       const PrerendererInstance = new Prerenderer(this._options)
       await PrerendererInstance.initialize()
 
@@ -77,6 +78,7 @@ PrerenderSPAPlugin.prototype.apply = function (compiler) {
       while (routes.length > 0) {
         const batch = routes.splice(0, this._options.batchSize)
 
+        reportProgress("\nPreparing batch:\n", batch.join("\n"));
         try {
           //reportProgress((batchNumber - 1) / numBatches, `starting batch ${batchNumber}/${numBatches}`)
           reportProgress(Math.floor(((batchNumber / numBatches).toFixed(2) * 100)).toString() + "%", `rendering batch ${batchNumber}/${numBatches}`)
@@ -95,6 +97,7 @@ PrerenderSPAPlugin.prototype.apply = function (compiler) {
 
           // Run postProcess hooks.
           if (this._options.postProcess) {
+            reportProgress("Running post process hooks..")
             renderedRoutes = await Promise.all(renderedRoutes.map(renderedRoute => this._options.postProcess(renderedRoute)))
           }
 
@@ -105,6 +108,7 @@ PrerenderSPAPlugin.prototype.apply = function (compiler) {
 
           // Minify html files if specified in config.
           if (this._options.minify) {
+            reportProgress("Minifying HTML...");
             renderedRoutes.forEach(route => {
               route.html = minify(route.html, this._options.minify)
             })
@@ -150,7 +154,8 @@ PrerenderSPAPlugin.prototype.apply = function (compiler) {
 
           // Force post-batch garbage collection
           renderedRoutes = null
-          if (global.gc) {
+          if (global.gc && batchNumber % 5 === 0) {
+            reportProgress("Running periodic garbage collection...")
             global.gc()
             await new Promise(resolve => setTimeout(resolve, 250))
           }
