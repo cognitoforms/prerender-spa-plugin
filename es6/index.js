@@ -65,7 +65,7 @@ PrerenderSPAPlugin.prototype.apply = function (compiler) {
     try {
       const reportProgress = (context && context.reportProgress) || (function () { 
         let args = Array.prototype.slice.call(arguments);
-        args.unshift("\nPRERENDER>");
+        args.unshift("\n[prerender-spa-plugin]");
         console.log(...args)
       });
       const routes = this._options.routes.slice()
@@ -79,7 +79,7 @@ PrerenderSPAPlugin.prototype.apply = function (compiler) {
 
         try {
           //reportProgress((batchNumber - 1) / numBatches, `starting batch ${batchNumber}/${numBatches}`)
-          reportProgress(((batchNumber / numBatches).toFixed(2) * 100).toString() + "%", `rendering batch ${batchNumber}/${numBatches}`)
+          reportProgress(Math.floor(((batchNumber / numBatches).toFixed(2) * 100)).toString() + "%", `rendering batch ${batchNumber}/${numBatches}`)
 
           let renderedRoutes = await PrerendererInstance.renderRoutes(batch || [])
 
@@ -118,8 +118,8 @@ PrerenderSPAPlugin.prototype.apply = function (compiler) {
           })
 
           // Create dirs and write prerendered files.
-          reportProgress((((batchNumber) / (numBatches)).toFixed(2) * 100).toString() + '%', `writing batch ${batchNumber}/${numBatches}`)
-          await Promise.all(renderedRoutes.map(async route => {
+          //don't await, need to focus on rendering, writing can be done async
+          Promise.all(renderedRoutes.map(async route => {
             const paths = [route.outputPath]
             if (Array.isArray(route.alternateOutputPaths)) {
               paths.push(...route.alternateOutputPaths)
@@ -144,7 +144,9 @@ PrerenderSPAPlugin.prototype.apply = function (compiler) {
                   })
                 })
               }));
-            }));
+            }))
+            .then(r => reportProgress((Math.floor(((batchNumber) / (numBatches)).toFixed(2) * 100)).toString() + '%', `batch ${batchNumber}/${numBatches} written`))
+            .catch(e => {throw e})
 
           // Force post-batch garbage collection
           renderedRoutes = null
