@@ -50,7 +50,9 @@
   },
   "dependencies": {
     "@prerenderer/prerenderer": "github:cognitoforms/prerenderer#perf-improvements",
-    "html-minifier": "^3.5.16"
+    "html-minifier": "^3.5.16",
+        "jsdom": "^15.0"
+
   },
   "devDependencies": {
     "ava": "^0.25.0",
@@ -60,7 +62,6 @@
     "babel-preset-env": "^1.7.0",
     "babel-preset-stage-2": "^6.24.1",
     "eslint": "^4.19.1",
-    "jsdom": "^15.0",
     "eslint-config-standard": "^5.3.5",
     "eslint-plugin-import": "^2.12.0",
     "eslint-plugin-node": "^6.0.1",
