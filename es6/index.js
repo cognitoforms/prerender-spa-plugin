@@ -71,22 +71,29 @@ PrerenderSPAPlugin.prototype.apply = function (compiler) {
       const routes = this._options.routes.slice()
       const numBatches = Math.ceil(routes.length / this._options.batchSize)
       reportProgress("Initializing prerenderer...")
-      const PrerendererInstance = new Prerenderer(this._options)
-      await PrerendererInstance.initialize()
 
       let batchNumber = 1;
       if (global.gc) {
         global.gc();
       }
       while (routes.length > 0) {
+        let PrerendererInstance = new Prerenderer(this._options)
+        await PrerendererInstance.initialize()
         const batch = routes.splice(0, this._options.batchSize)
 
-        reportProgress("\nPreparing batch:\n", batch.join("\n"));
+        //reportProgress("\nPreparing batch:\n", batch.join("\n"));
         try {
           //reportProgress((batchNumber - 1) / numBatches, `starting batch ${batchNumber}/${numBatches}`)
           reportProgress(Math.floor(((batchNumber / numBatches).toFixed(2) * 100)).toString() + "%", `rendering batch ${batchNumber}/${numBatches}`)
 
-          let renderedRoutes = await PrerendererInstance.renderRoutes(batch || [])
+          let renderedRoutes;
+          try {
+            renderedRoutes = await PrerendererInstance.renderRoutes(batch || []);
+          }
+          finally {
+              await PrerendererInstance.destroy()
+              PrerendererInstance = null;
+          }
           reportProgress("Routes rendered!");
           // Backwards-compatibility with v2 (postprocessHTML should be migrated to postProcess)
           if (this._options.postProcessHtml) {
@@ -126,7 +133,7 @@ PrerenderSPAPlugin.prototype.apply = function (compiler) {
 
           // Create dirs and write prerendered files.
           //don't await, need to focus on rendering, writing can be done async
-          Promise.all(renderedRoutes.map(async route => {
+          await Promise.all(renderedRoutes.map(async route => {
             const paths = [route.outputPath]
             if (Array.isArray(route.alternateOutputPaths)) {
               paths.push(...route.alternateOutputPaths)
@@ -157,20 +164,18 @@ PrerenderSPAPlugin.prototype.apply = function (compiler) {
 
           // Force post-batch garbage collection
           renderedRoutes = null
-          if (global.gc && batchNumber % 5 === 0) {
-            reportProgress("Running periodic garbage collection...")
-            global.gc()
-            await new Promise(resolve => setTimeout(resolve, 250))
-          }
 
           ++batchNumber
         } catch (err) {
           console.log("Failed rendering", err, "continuing...")
           continue;
         }
+        finally {
+          if (global.gc) global.gc();
+        }
       }
       reportProgress("Prerender complete!");
-      await PrerendererInstance.destroy()
+      
     } catch (err) {
       const msg = '[prerender-spa-plugin] Unable to prerender all routes!'
       reportProgress(msg, err);
