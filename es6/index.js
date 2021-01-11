@@ -74,7 +74,10 @@ PrerenderSPAPlugin.prototype.apply = function (compiler) {
       const PrerendererInstance = new Prerenderer(this._options)
       await PrerendererInstance.initialize()
 
-      let batchNumber = 1
+      let batchNumber = 1;
+      if (global.gc) {
+        global.gc();
+      }
       while (routes.length > 0) {
         const batch = routes.splice(0, this._options.batchSize)
 
@@ -141,7 +144,7 @@ PrerenderSPAPlugin.prototype.apply = function (compiler) {
 
                   throw err
                 }
-                return new Promise((resolve, reject) => {
+                return await new Promise((resolve, reject) => {
                   compilerFS.writeFile(outputPath, route.html.trim(), err => {
                     if (err) reject(`[prerender-spa-plugin] Unable to write rendered route to file "${outputPath}" \n ${err}.`)
                     else resolve()
@@ -162,15 +165,15 @@ PrerenderSPAPlugin.prototype.apply = function (compiler) {
 
           ++batchNumber
         } catch (err) {
-          await PrerendererInstance.destroy()
-          throw err
+          console.log("Failed rendering", err, "continuing...")
+          continue;
         }
       }
       reportProgress("Prerender complete!");
       await PrerendererInstance.destroy()
     } catch (err) {
       const msg = '[prerender-spa-plugin] Unable to prerender all routes!'
-      creportProgress(msg, err);
+      reportProgress(msg, err);
       compilation.errors.push(new Error(msg))
     }
     done()
