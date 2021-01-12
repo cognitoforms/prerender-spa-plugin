@@ -76,24 +76,18 @@ PrerenderSPAPlugin.prototype.apply = function (compiler) {
       if (global.gc) {
         global.gc();
       }
+      let PrerendererInstance = new Prerenderer(this._options)
+      await PrerendererInstance.initialize()
       while (routes.length > 0) {
-        let PrerendererInstance = new Prerenderer(this._options)
-        await PrerendererInstance.initialize()
+        
         const batch = routes.splice(0, this._options.batchSize)
 
-        //reportProgress("\nPreparing batch:\n", batch.join("\n"));
+        reportProgress("\nPreparing batch:\n", batch.join("\n"));
         try {
           //reportProgress((batchNumber - 1) / numBatches, `starting batch ${batchNumber}/${numBatches}`)
           reportProgress(Math.floor(((batchNumber / numBatches).toFixed(2) * 100)).toString() + "%", `rendering batch ${batchNumber}/${numBatches}`)
 
-          let renderedRoutes;
-          try {
-            renderedRoutes = await PrerendererInstance.renderRoutes(batch || []);
-          }
-          finally {
-              await PrerendererInstance.destroy()
-              PrerendererInstance = null;
-          }
+          let renderedRoutes = await PrerendererInstance.renderRoutes(batch || []);
           reportProgress("Routes rendered!");
           // Backwards-compatibility with v2 (postprocessHTML should be migrated to postProcess)
           if (this._options.postProcessHtml) {
@@ -133,7 +127,7 @@ PrerenderSPAPlugin.prototype.apply = function (compiler) {
 
           // Create dirs and write prerendered files.
           //don't await, need to focus on rendering, writing can be done async
-          await Promise.all(renderedRoutes.map(async route => {
+          Promise.all(renderedRoutes.map(async route => {
             const paths = [route.outputPath]
             if (Array.isArray(route.alternateOutputPaths)) {
               paths.push(...route.alternateOutputPaths)
@@ -174,6 +168,7 @@ PrerenderSPAPlugin.prototype.apply = function (compiler) {
           if (global.gc) global.gc();
         }
       }
+      await PrerendererInstance.destroy();
       reportProgress("Prerender complete!");
       
     } catch (err) {
